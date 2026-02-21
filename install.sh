@@ -7,100 +7,99 @@ set -euo pipefail
 USER_TO_RUN="$SUDO_USER"
 HOME_DIR=$(eval echo "~$USER_TO_RUN")
 
-CONFIG_REPO="https://github.com/skadakar/swayconf.git"
-CONFIG_DIR="$HOME_DIR/.config/swayconf"
-DOTFILES_DIR="$HOME_DIR/.dotfiles"
+REPO_URL="https://github.com/skadakar/swayconf.git"
+TMP_REPO=$(mktemp -d)
 
 # ----------------------------------------
-# Function: install pacman packages
+# Package Installation (pacman: / yay:)
 # ----------------------------------------
-install_pacman() {
-    echo "Installing pacman packages..."
-    while read -r pkg; do
-        # skip empty lines and comments
-        [[ -z "$pkg" || "$pkg" =~ ^# ]] && continue
-        sudo pacman -S --needed --noconfirm "$pkg"
-    done < applications.txt
+install_packages() {
+    echo "Installing packages from applications.txt..."
+
+    while read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        case "$line" in
+            pacman:*)
+                pkg="${line#pacman:}"
+                echo "Installing via pacman: $pkg"
+                sudo pacman -S --needed --noconfirm "$pkg"
+                ;;
+            yay:*)
+                pkg="${line#yay:}"
+                echo "Installing via yay: $pkg"
+                sudo -u "$USER_TO_RUN" yay -S --noconfirm "$pkg"
+                ;;
+            *)
+                echo "Skipping unknown line: $line"
+                ;;
+        esac
+    done < "./applications.txt"
 }
 
 # ----------------------------------------
-# Function: install AUR packages via yay
+# Clone Repo and Copy Configs
 # ----------------------------------------
-install_yay_aur() {
-    echo "Installing AUR packages..."
-    while read -r pkg; do
-        [[ -z "$pkg" || "$pkg" =~ ^# ]] && continue
-        if [[ "$pkg" == yay:* ]]; then
-            aur_pkg="${pkg#yay: }"
-            sudo -u "$USER_TO_RUN" yay -S --noconfirm "$aur_pkg"
-        fi
-    done < applications.txt
-}
+setup_configs() {
+    echo "Cloning swayconf repo..."
+    git clone --depth 1 "$REPO_URL" "$TMP_REPO"
+    chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$TMP_REPO"
 
-# ----------------------------------------
-# Function: Clone dotfiles and sway configs
-# ----------------------------------------
-setup_dotfiles() {
-    echo "Setting up dotfiles..."
-    # Clone swayconf
-    if [[ ! -d "$CONFIG_DIR" ]]; then
-        sudo -u "$USER_TO_RUN" git clone "$CONFIG_REPO" "$CONFIG_DIR"
-    fi
-
+    mkdir -p "$HOME_DIR/.config/sway"
     mkdir -p "$HOME_DIR/.config/rofi"
     mkdir -p "$HOME_DIR/.config/gtk-3.0"
-    mkdir -p "$HOME_DIR/.config/gtk-4.0"
+    mkdir- p "$HOME_DIR/.config/gtk-4.0"
 
-    # Copy cleaned sway config
-    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/sway/config" "$HOME_DIR/.config/sway/config"
+    # Copy Sway config
+    sudo -u "$USER_TO_RUN" cp "$TMP_REPO/sway/config" "$HOME_DIR/.config/sway/config"
 
     # Copy Rofi scripts
-    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/rofi/powermenu.lua" "$HOME_DIR/.config/rofi/powermenu.lua"
-    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/rofi/filebrowser" "$HOME_DIR/.config/rofi/filebrowser"
-    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/rofi/drun" "$HOME_DIR/.config/rofi/drun"
+    for script in powermenu.lua filebrowser drun; do
+        if [[ -f "$TMP_REPO/rofi/$script" ]]; then
+            sudo -u "$USER_TO_RUN" cp "$TMP_REPO/rofi/$script" "$HOME_DIR/.config/rofi/$script"
+            chmod +x "$HOME_DIR/.config/rofi/$script"
+        fi
+    done
 
-    # Set executable permissions
-    chmod +x "$HOME_DIR/.config/rofi/powermenu.lua" "$HOME_DIR/.config/rofi/filebrowser" "$HOME_DIR/.config/rofi/drun"
+    # Copy GTK configs from your local repo location if provided
+    if [[ -d "$TMP_REPO/gtk" ]]; then
+        cp -r "$TMP_REPO/gtk/." "$HOME_DIR/.config/gtk-3.0/"
+        cp -r "$TMP_REPO/gtk/." "$HOME_DIR/.config/gtk-4.0/"
+    fi
 
-    # Copy GTK config files (assuming user added them)
-    cp -r "$CONFIG_DIR/gtk/." "$HOME_DIR/.config/gtk-3.0/"
-    cp -r "$CONFIG_DIR/gtk/." "$HOME_DIR/.config/gtk-4.0/"
+    # Copy .profile from repo if present
+    if [[ -f "$TMP_REPO/profile/.profile" ]]; then
+        sudo -u "$USER_TO_RUN" cp "$TMP_REPO/profile/.profile" "$HOME_DIR/.profile"
+    fi
 }
 
 # ----------------------------------------
-# Function: Install BetterGruvbox GTK theme
+# GTK Theme Install
 # ----------------------------------------
 install_gruvbox_theme() {
-    echo "Installing GTK dependencies..."
-    sudo pacman -S --needed --noconfirm gtk-engine-murrine
-
-    echo "Installing BetterGruvbox GTK theme..."
+    echo "Installing BetterGruvbox GTK theme from AUR..."
     sudo -u "$USER_TO_RUN" yay -S --noconfirm bettergruvbox-gtk-theme
 }
 
 # ----------------------------------------
-# Main Script
+# Main
 # ----------------------------------------
 main() {
-    echo "Starting installer..."
+    echo "Starting installation..."
 
-    # Update system first (optional)
+    # Update system packages
     sudo pacman -Syu --noconfirm
 
-    # Install system packages
-    install_pacman
-
-    # Install AUR packages
-    install_yay_aur
+    # Install listed packages
+    install_packages
 
     # Install GTK theme
     install_gruvbox_theme
 
-    # Setup dotfiles and configs
-    setup_dotfiles
+    # Setup configs from repo
+    setup_configs
 
-    echo "Installer complete!"
-    echo "Reload Sway with Mod+Shift+C to apply configuration."
+    echo "Done! Reload Sway (Mod+Shift+C) and log out/in for GTK_THEME."
 }
 
 main
