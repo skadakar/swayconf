@@ -142,30 +142,6 @@ if [[ -d "$ETC_DIR" ]]; then
 fi
 
 
-# -------------------------------
-# Apply GTK theme globally
-# -------------------------------
-GTK_THEME_NAME="BetterGruvbox-Dark"
-PROFILE_FILE="$HOME_TO_USE/.profile"
-
-# Ensure GTK theme is exported for all GTK apps
-if ! grep -q "export GTK_THEME=" "$PROFILE_FILE" 2>/dev/null; then
-    echo "export GTK_THEME=\"$GTK_THEME_NAME\"" >> "$PROFILE_FILE"
-    chown "$USER_TO_RUN":"$USER_TO_RUN" "$PROFILE_FILE"
-    echo "Added GTK_THEME=$GTK_THEME_NAME to $PROFILE_FILE"
-else
-    echo "GTK_THEME already set in $PROFILE_FILE, skipping..."
-fi
-
-# Optional: also apply for Sway environment
-SWAY_CONFIG="$HOME_TO_USE/.config/sway/config"
-if [[ -f "$SWAY_CONFIG" ]]; then
-    if ! grep -q "setenv GTK_THEME" "$SWAY_CONFIG"; then
-        echo "setenv GTK_THEME $GTK_THEME_NAME" >> "$SWAY_CONFIG"
-        echo "Added setenv GTK_THEME to sway config"
-    fi
-fi
-
 
 # -------------------------------
 # Setup greeter user properly
