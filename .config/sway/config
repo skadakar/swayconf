@@ -95,7 +95,7 @@ exec_always xrdb -load ~/.Xresources
 bindsym {
   $mod+Return exec $term
   $mod+w kill
-  $mod $menu
+  $mod+r $menu
   $mod+e exec $file
   $mod+q exec $power
   $mod+l exec swaylock
