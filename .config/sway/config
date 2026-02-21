@@ -10,7 +10,7 @@ set {
 
   $resize_factor 40px
 
-  $menu rofi -show drun | swaymsg
+  $menu rofi -show drun 
   $file rofi -show filebrowser | swaymsg
   $power rofi -show powermenu | swaymsg
 }
