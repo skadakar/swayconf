@@ -18,7 +18,7 @@ pacman:luajit
 pacman:slurp
 pacman:grim
 pacman:playerctl
-pacman:gtk-engine-murrine
+
 
 # AUR Packages
 yay:slack-desktop
@@ -26,3 +26,4 @@ yay:spotify
 yay:zen-browser-bin
 yay:light
 yay:rofi
+yay:bettergruvbox-gtk-theme
