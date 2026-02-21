@@ -2,258 +2,195 @@
 # | SwayWM Configuration file |
 # +---------------------------+
 
-#
-# Variables:
-#
-set {
-  $mod Mod4
-
-  $resize_factor 40px
-
-  $menu rofi -show drun 
-  $file rofi -show filebrowser | swaymsg
-  $power rofi -show powermenu | swaymsg
-}
-
-
-bindsym Mod4+r exec rofi -show drun
 # -------------------------------
-# Pin apps permanently to their workspaces
+# Variables
 # -------------------------------
+set $mod Mod4
+set $resize_factor 40px
 
-# Zen Browser always on workspace 1
+# Terminal
+set $term kitty
+
+# Rofi menus
+set $menu rofi -show drun
+set $file rofi -show filebrowser
+set $power rofi -show powermenu
+
+# Screenshot
+set $screenshot "Screenshot: [s]creen [w]indow [r]egion"
+set $screenshot_cmd ~/.config/sway/screenshot.sh
+
+# Colors
+set $accent #ebdbb2
+set $red #cc241d
+set $darkgray #3c3836
+
+# -------------------------------
+# App pinning
+# -------------------------------
 assign [app_id="zen-browser"] 1
 for_window [app_id="zen-browser"] move to workspace 1
 
-# Slack pinned to workspace 2 (optional scratchpad)
 assign [class="Slack"] 2
 for_window [class="Slack"] move to workspace 2
 
-# Discord pinned to workspace 2
 assign [class="discord"] 2
 for_window [class="discord"] move to workspace 2
-
 
 # -------------------------------
 # Autostart apps
 # -------------------------------
-# Zen Browser on workspace 1
 exec swaymsg "workspace 1; exec zen-browser --user-data-dir=$HOME/.config/zen-browser-profile --no-first-run --no-default-browser-check"
-
-# Slack on workspace 2, optional scratchpad hide
 exec swaymsg "workspace 2; exec slack; move scratchpad"
-
-# Discord on workspace 2, pinned permanently
 exec swaymsg "workspace 2; exec discord"
-#
-# Terminal:
-#
-set $term kitty
 
+# -------------------------------
+# Window appearance
+# -------------------------------
 default_border pixel 2
 default_floating_border pixel 2
 
-#
-# Focus layout
-#
-# output * bg #3c3836 solid_color
-# gaps outer 2
-# smart_borders on
-# smart_gaps inverse_outer
-
-#
-# Aesthetic layout
-#
-#output * {
-  # scale 1.25
-  #bg ~/.config/wallpaper.png fill
-#}
-
 smart_borders on
 gaps inner 6
-
-input {
-  type:touchpad {
-    tap enabled
-    natural_scroll enabled
-
-  }
-  type:keyboard {
-    xkb_layout no
-  }
-}
-
-#
-# Load Xresources
-#
-exec_always xrdb -load ~/.Xresources
-
-### Key bindings
-#
-# Basics:
-#
-bindsym {
-  $mod+Return exec $term
-  $mod+w kill
-  $mod+r $menu
-  $mod+e exec $file
-  $mod+q exec $power
-  $mod+l exec swaylock
-  $mod+Shift+c reload
-}
-
-#
-# Multimedia:
-#
-bindsym --locked {
-  XF86MonBrightnessUp exec light -A 5
-  XF86MonBrightnessDown exec light -U 5
-
-  XF86AudioRaiseVolume exec pactl set-sink-volume @DEFAULT_SINK@ +5%
-  XF86AudioLowerVolume exec pactl set-sink-volume @DEFAULT_SINK@ -5%
-  XF86AudioMute exec pactl set-sink-mute @DEFAULT_SINK@ toggle
-  XF86AudioMicMute exec pactl set-source-mute @DEFAULT_SOURCE@ toggle
-
-  XF86AudioPlay exec playerctl play-pause
-  XF86AudioNext exec playerctl next
-  XF86AudioPrev exec playerctl previous
-
-  f7 exec playerctl play-pause
-  f8 exec playerctl next
-  f6 exec playerctl previous
-}
-
-# Drag floating windows by holding down $mod and left mouse button.
-# Resize them with right mouse button + $mod.
-# Despite the name, also works for non-floating windows.
-# Change normal to inverse to use left mouse button for resizing and right
-# mouse button for dragging.
-floating_modifier $mod normal
-
-
-# -------------------------------
-# Change focus
-# -------------------------------
-bindsym $mod+Left  focus left
-bindsym $mod+Down  focus down
-bindsym $mod+Up    focus up
-bindsym $mod+Right focus right
-
-# -------------------------------
-# Move windows
-# -------------------------------
-bindsym $mod+Shift+Left  move left
-bindsym $mod+Shift+Down  move down
-bindsym $mod+Shift+Up    move up
-bindsym $mod+Shift+Right move right
-
-# -------------------------------
-# Resize windows
-# -------------------------------
-bindsym $mod+Ctrl+Left  resize shrink width $resize_factor
-bindsym $mod+Ctrl+Down  resize grow height $resize_factor 
-bindsym $mod+Ctrl+Up    resize shrink height $resize_factor
-bindsym $mod+Ctrl+Right resize grow width $resize_factor
-
-#
-# Workspaces:
-#
-bindsym {
-  # Switch to workspace
-  $mod+1 workspace number 1
-  $mod+2 workspace number 2
-  $mod+3 workspace number 3
-  $mod+4 workspace number 4
-  $mod+5 workspace number 5
-  $mod+6 workspace number 6
-  $mod+7 workspace number 7
-  $mod+8 workspace number 8
-  $mod+9 workspace number 9
-  $mod+0 workspace number 10
-  
-  # Move focused container to workspace
-  $mod+Shift+1 move container to workspace number 1
-  $mod+Shift+2 move container to workspace number 2
-  $mod+Shift+3 move container to workspace number 3
-  $mod+Shift+4 move container to workspace number 4
-  $mod+Shift+5 move container to workspace number 5
-  $mod+Shift+6 move container to workspace number 6
-  $mod+Shift+7 move container to workspace number 7
-  $mod+Shift+8 move container to workspace number 8
-  $mod+Shift+9 move container to workspace number 9
-  $mod+Shift+0 move container to workspace number 10
-}
-
-#
-# Layout stuff:
-#
-bindsym {
-  # Make the current focus fullscreen
-  $mod+f fullscreen
-
-  # Toggle the current focus between tiling and floating mode
-  $mod+Shift+space floating toggle
-
-  # Swap focus between the tiling area and the floating area
-  $mod+space focus mode_toggle
-
-  # Move focus to the parent container
-  $mod+a focus parent
-
-  # Move the currently focused window to the scratchpad
-  $mod+Shift+minus move scratchpad
-
-  # Show the next scratchpad window or hide the focused scratchpad window.
-  # If there are multiple scratchpad windows, this command cycles through them.
-  $mod+minus scratchpad show
-}
-
-#
-### Screenshot mode:
-#
-set {
-  $screenshot "Screenshot: [s]creen [w]window [r]egion"
-
-  $screenshot-cmd ~/.config/sway/screenshot.sh
-}
-
-mode $screenshot {
-  bindsym --to-code {
-    s mode "default", exec $screenshot-cmd screen
-    w mode "default", exec $screenshot-cmd window 
-    r mode "default", exec $screenshot-cmd region 
-
-    Return mode "default"
-    Escape mode "default"
-    $mod+x mode "default"
-  }
-}
-
-bindsym --to-code $mod+s mode $screenshot
-
-### Theming
-#
-# Colors:
-#
-set {
-  $accent #ebdbb2
-  $red #cc241d
-  $darkgray #3c3836
-}
 
 client.focused          $accent $accent $darkgray $accent $accent
 client.focused_inactive $darkgray $darkgray $accent $darkgray $darkgray
 client.unfocused        $darkgray $darkgray $accent $darkgray $darkgray
 client.urgent           $red $red $accent $red $red
 
-#
-# Disable xwayland
-#
+# -------------------------------
+# Input
+# -------------------------------
+input {
+  type:touchpad {
+    tap enabled
+    natural_scroll enabled
+  }
+  type:keyboard {
+    xkb_layout no
+  }
+}
+
+# -------------------------------
+# Load Xresources
+# -------------------------------
+exec_always xrdb -load ~/.Xresources
+
+# -------------------------------
+# Floating window modifier
+# -------------------------------
+floating_modifier $mod normal
+
+# -------------------------------
+# Basics Keybindings
+# -------------------------------
+bindsym $mod+Return exec $term
+bindsym $mod+w kill
+bindsym $mod+r exec $menu
+bindsym $mod+e exec $file
+bindsym $mod+q exec $power
+bindsym $mod+l exec swaylock
+bindsym $mod+Shift+c reload
+
+# -------------------------------
+# Multimedia Keys
+# -------------------------------
+bindsym --locked XF86MonBrightnessUp exec light -A 5
+bindsym --locked XF86MonBrightnessDown exec light -U 5
+
+bindsym --locked XF86AudioRaiseVolume exec pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym --locked XF86AudioLowerVolume exec pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym --locked XF86AudioMute exec pactl set-sink-mute @DEFAULT_SINK@ toggle
+bindsym --locked XF86AudioMicMute exec pactl set-source-mute @DEFAULT_SOURCE@ toggle
+
+bindsym --locked XF86AudioPlay exec playerctl play-pause
+bindsym --locked XF86AudioNext exec playerctl next
+bindsym --locked XF86AudioPrev exec playerctl previous
+
+bindsym --locked f7 exec playerctl play-pause
+bindsym --locked f8 exec playerctl next
+bindsym --locked f6 exec playerctl previous
+
+# -------------------------------
+# Focus and move
+# -------------------------------
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# -------------------------------
+# Resize windows
+# -------------------------------
+bindsym $mod+Ctrl+Left resize shrink width $resize_factor
+bindsym $mod+Ctrl+Down resize grow height $resize_factor
+bindsym $mod+Ctrl+Up resize shrink height $resize_factor
+bindsym $mod+Ctrl+Right resize grow width $resize_factor
+
+# -------------------------------
+# Workspaces
+# -------------------------------
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+bindsym $mod+6 workspace number 6
+bindsym $mod+7 workspace number 7
+bindsym $mod+8 workspace number 8
+bindsym $mod+9 workspace number 9
+bindsym $mod+0 workspace number 10
+
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+bindsym $mod+Shift+6 move container to workspace number 6
+bindsym $mod+Shift+7 move container to workspace number 7
+bindsym $mod+Shift+8 move container to workspace number 8
+bindsym $mod+Shift+9 move container to workspace number 9
+bindsym $mod+Shift+0 move container to workspace number 10
+
+# -------------------------------
+# Layout toggles
+# -------------------------------
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space focus mode_toggle
+bindsym $mod+a focus parent
+bindsym $mod+Shift+minus move scratchpad
+bindsym $mod+minus scratchpad show
+
+# -------------------------------
+# Screenshot mode
+# -------------------------------
+mode $screenshot {
+  bindsym --to-code s mode "default", exec $screenshot_cmd screen
+  bindsym --to-code w mode "default", exec $screenshot_cmd window
+  bindsym --to-code r mode "default", exec $screenshot_cmd region
+  bindsym --to-code Return mode "default"
+  bindsym --to-code Escape mode "default"
+  bindsym --to-code $mod+x mode "default"
+}
+bindsym --to-code $mod+s mode $screenshot
+
+# -------------------------------
+# Disable xwayland (optional)
+# -------------------------------
 # xwayland disable
 
-#
-# Status Bar:
-#
+# -------------------------------
+# Status bar
+# -------------------------------
 bar swaybar_command waybar
 
+# -------------------------------
+# Include extra configs
+# -------------------------------
 include /etc/sway/config.d/*
