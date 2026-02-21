@@ -14,12 +14,11 @@ pacman:swaylock
 pacman:greetd
 pacman:yay
 pacman:htop
-pacman:rofi-wayland 
+pacman:rofi 
 pacman:luajit
 pacman:slurp
 pacman:grim
 pacman:playerctl
-pacman:pulseaudio-utils
 
 # AUR Packages
 yay:slack-desktop
