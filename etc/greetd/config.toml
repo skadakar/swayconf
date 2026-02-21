@@ -1,0 +1,8 @@
+[terminal]
+# choose any TTY you want; e.g., tty1
+vt = 1
+
+[default_session]
+# use sway as the session
+command = "sway"
+user = "o"

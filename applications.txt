@@ -1,0 +1,23 @@
+#Any whitespace will lead to issues
+
+# Core System (pacman)
+
+pacman:git
+pacman:neovim
+pacman:discord
+pacman:signal-desktop
+pacman:vscodium
+pacman:waybar
+pacman:wl-clipboard
+pacman:swaybg
+pacman:swaylock
+pacman:greetd
+pacman:yay
+pacman:htop
+pacman:rofi
+
+# AUR Packages
+
+yay:slack-desktop
+yay:spotify
+yay:zen-browser-bin
