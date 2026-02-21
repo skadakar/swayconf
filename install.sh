@@ -1,33 +1,44 @@
 #!/bin/bash
 set -euo pipefail
 
-# Determine where this script lives so we can reference files reliably
+# ----------------------------------------
+# Script directory
+# ----------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ----------------------------------------
-# Variables
+# Check for sudo
 # ----------------------------------------
 USER_TO_RUN="${SUDO_USER:-}"
 if [[ -z "$USER_TO_RUN" ]]; then
-    echo "Error: must run with sudo"
+    echo "Error: Please run this script with sudo"
     exit 1
 fi
 HOME_DIR=$(eval echo "~$USER_TO_RUN")
 
+# ----------------------------------------
+# Repo URL
+# ----------------------------------------
 REPO_URL="https://github.com/skadakar/swayconf.git"
 TMP_REPO="$(mktemp -d)"
 
 # ----------------------------------------
-# Install packages from applications.txt
+# Find applications.txt
+# ----------------------------------------
+if [[ -f "./applications.txt" ]]; then
+    APPS_FILE="./applications.txt"
+elif [[ -f "$SCRIPT_DIR/applications.txt" ]]; then
+    APPS_FILE="$SCRIPT_DIR/applications.txt"
+else
+    echo "Error: applications.txt not found in current directory or script directory"
+    exit 1
+fi
+
+# ----------------------------------------
+# Install packages
 # ----------------------------------------
 install_packages() {
-    echo "Installing packages from applications.txt..."
-
-    apps_file="$SCRIPT_DIR/applications.txt"
-    if [[ ! -f "$apps_file" ]]; then
-        echo "Error: applications.txt not found at $apps_file"
-        exit 1
-    fi
+    echo "Installing packages from $APPS_FILE..."
 
     while read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -47,14 +58,14 @@ install_packages() {
                 echo "Skipping unknown line: $line"
                 ;;
         esac
-    done < "$apps_file"
+    done < "$APPS_FILE"
 }
 
 # ----------------------------------------
-# Clone repo and setup configs
+# Clone swayconf and copy configs
 # ----------------------------------------
 setup_configs() {
-    echo "Cloning swayconf repo…"
+    echo "Cloning swayconf repo..."
     git clone --depth 1 "$REPO_URL" "$TMP_REPO"
     chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$TMP_REPO"
 
@@ -67,7 +78,7 @@ setup_configs() {
     cp "$TMP_REPO/sway/config" "$HOME_DIR/.config/sway/config"
     chown "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_DIR/.config/sway/config"
 
-    # Copy Rofi scripts and make them executable
+    # Copy Rofi scripts and fix permissions
     for script in powermenu.lua filebrowser drun; do
         if [[ -f "$TMP_REPO/rofi/$script" ]]; then
             cp "$TMP_REPO/rofi/$script" "$HOME_DIR/.config/rofi/$script"
@@ -76,14 +87,14 @@ setup_configs() {
         fi
     done
 
-    # Copy GTK config if present in the repo
+    # Copy GTK configs if present
     if [[ -d "$TMP_REPO/gtk" ]]; then
         cp -r "$TMP_REPO/gtk/." "$HOME_DIR/.config/gtk-3.0/"
         cp -r "$TMP_REPO/gtk/." "$HOME_DIR/.config/gtk-4.0/"
         chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_DIR/.config/gtk-3.0/" "$HOME_DIR/.config/gtk-4.0/"
     fi
 
-    # Copy .profile if present in the repo
+    # Copy .profile if present
     if [[ -f "$TMP_REPO/profile/.profile" ]]; then
         cp "$TMP_REPO/profile/.profile" "$HOME_DIR/.profile"
         chown "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_DIR/.profile"
@@ -92,10 +103,10 @@ setup_configs() {
 }
 
 # ----------------------------------------
-# Install BetterGruvbox GTK theme (AUR)
+# Install BetterGruvbox GTK theme
 # ----------------------------------------
 install_gruvbox_theme() {
-    echo "Installing BetterGruvbox GTK theme from AUR…"
+    echo "Installing BetterGruvbox GTK theme from AUR..."
     sudo -u "$USER_TO_RUN" yay -S --noconfirm bettergruvbox-gtk-theme
 }
 
@@ -103,22 +114,22 @@ install_gruvbox_theme() {
 # Main
 # ----------------------------------------
 main() {
-    echo "Starting installer…"
+    echo "Starting installer..."
 
-    # Update system
+    # Update system packages
     sudo pacman -Syu --noconfirm
 
-    # Install listed packages
+    # Install packages
     install_packages
 
-    # GTK theme (BetterGruvbox)
+    # Install GTK theme
     install_gruvbox_theme
 
-    # Dotfiles and configs
+    # Setup configs
     setup_configs
 
-    echo "Done!"
-    echo "Reload Sway (Mod+Shift+C) and log out/in to apply GTK_THEME"
+    echo "Installation complete!"
+    echo "Reload Sway (Mod+Shift+C) and log out/in to apply GTK_THEME for Zen Browser and other GTK apps."
 }
 
 main
