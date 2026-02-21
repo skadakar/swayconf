@@ -1,179 +1,106 @@
-#!/usr/bin/env bash
-# Production Sway bootstrap installer with gtkgreet + greetd
-# curl -sfL https://sway.spurve.net/install.sh | sudo bash
-
+#!/bin/bash
 set -euo pipefail
 
-# -------------------------------
-# CONFIG
-# -------------------------------
-REPO_URL="https://github.com/skadakar/swayconf.git"
-APPLICATIONS_FILE="applications.txt"
-CONFIG_DIR=".config"
-ETC_DIR="etc"
-GREETER_HOME="/var/lib/greeter"
+# ----------------------------------------
+# Variables
+# ----------------------------------------
+USER_TO_RUN="$SUDO_USER"
+HOME_DIR=$(eval echo "~$USER_TO_RUN")
 
-# -------------------------------
-# Ensure running as root
-# -------------------------------
-if [[ $EUID -ne 0 ]]; then
-  echo "This script must be run as root (use sudo)."
-  exit 1
-fi
+CONFIG_REPO="https://github.com/skadakar/swayconf.git"
+CONFIG_DIR="$HOME_DIR/.config/swayconf"
+DOTFILES_DIR="$HOME_DIR/.dotfiles"
 
-# -------------------------------
-# Determine non-root user
-# -------------------------------
-USER_TO_RUN="${SUDO_USER:-}"
-if [[ -z "$USER_TO_RUN" ]]; then
-  echo "Could not determine non-root user."
-  exit 1
-fi
-
-HOME_TO_USE=$(eval echo "~$USER_TO_RUN")
-
-# -------------------------------
-# Helper: install yay
-# -------------------------------
-install_yay() {
-  if ! command -v yay &>/dev/null; then
-    echo "Installing yay..."
-    pacman -S --needed --noconfirm git base-devel
-    TMP_DIR=$(mktemp -d -p "$HOME_TO_USE")
-    chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$TMP_DIR"
-    sudo -u "$USER_TO_RUN" git clone https://aur.archlinux.org/yay.git "$TMP_DIR/yay"
-    cd "$TMP_DIR/yay"
-    sudo -u "$USER_TO_RUN" makepkg -si --noconfirm
-    cd -
-    rm -rf "$TMP_DIR"
-  fi
+# ----------------------------------------
+# Function: install pacman packages
+# ----------------------------------------
+install_pacman() {
+    echo "Installing pacman packages..."
+    while read -r pkg; do
+        # skip empty lines and comments
+        [[ -z "$pkg" || "$pkg" =~ ^# ]] && continue
+        sudo pacman -S --needed --noconfirm "$pkg"
+    done < applications.txt
 }
 
-# -------------------------------
-# Clone repo
-# -------------------------------
-TMP_REPO=$(mktemp -d)
-trap 'rm -rf "$TMP_REPO"' EXIT
-
-echo "Cloning swayconf..."
-git clone --depth 1 --branch main "$REPO_URL" "$TMP_REPO"
-chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$TMP_REPO"
-cd "$TMP_REPO"
-
-# -------------------------------
-# Install packages
-# (UNCHANGED)
-# -------------------------------
-if [[ -f "$APPLICATIONS_FILE" ]]; then
-  pacman_pkgs=()
-  yay_pkgs=()
-  while IFS= read -r line; do
-    [[ -z "$line" || "$line" =~ ^# ]] && continue
-    manager="${line%%:*}"
-    package="${line#*:}"
-    case "$manager" in
-      pacman) pacman_pkgs+=("$package") ;;
-      yay) yay_pkgs+=("$package") ;;
-    esac
-  done < "$APPLICATIONS_FILE"
-
-  if [[ ${#pacman_pkgs[@]} -gt 0 ]]; then
-    echo "Installing pacman packages..."
-    pacman -S --needed --noconfirm "${pacman_pkgs[@]}"
-  fi
-
-  if [[ ${#yay_pkgs[@]} -gt 0 ]]; then
-    install_yay
+# ----------------------------------------
+# Function: install AUR packages via yay
+# ----------------------------------------
+install_yay_aur() {
     echo "Installing AUR packages..."
-    for pkg in "${yay_pkgs[@]}"; do
-      if ! sudo -u "$USER_TO_RUN" yay -Q "$pkg" &>/dev/null; then
-        echo "Installing $pkg..."
-        sudo -u "$USER_TO_RUN" yay -S --noconfirm "$pkg"
-      else
-        echo "$pkg is already installed, skipping..."
-      fi
-    done
-  fi
-fi
+    while read -r pkg; do
+        [[ -z "$pkg" || "$pkg" =~ ^# ]] && continue
+        if [[ "$pkg" == yay:* ]]; then
+            aur_pkg="${pkg#yay: }"
+            sudo -u "$USER_TO_RUN" yay -S --noconfirm "$aur_pkg"
+        fi
+    done < applications.txt
+}
 
-# -------------------------------
-# Sync only repo-managed user configs
-# -------------------------------
-echo "Syncing user config..."
-mkdir -p "$HOME_TO_USE/.config"
-
-if [[ -d "$CONFIG_DIR" ]]; then
-  for item in "$CONFIG_DIR"/*; do
-    base_item=$(basename "$item")
-    dest="$HOME_TO_USE/.config/$base_item"
-    if [[ -d "$item" ]]; then
-      mkdir -p "$dest"
-      rsync -a "$item/" "$dest/"
-    else
-      cp -a "$item" "$dest"
+# ----------------------------------------
+# Function: Clone dotfiles and sway configs
+# ----------------------------------------
+setup_dotfiles() {
+    echo "Setting up dotfiles..."
+    # Clone swayconf
+    if [[ ! -d "$CONFIG_DIR" ]]; then
+        sudo -u "$USER_TO_RUN" git clone "$CONFIG_REPO" "$CONFIG_DIR"
     fi
-  done
 
-  # ❗ FIX: Make rofi and script files executable
-  echo "Fixing executable permissions for rofi scripts..."
-  find "$HOME_TO_USE/.config/rofi" -type f -iname "*.lua" -exec chmod +x {} \; 2>/dev/null || true
-  find "$HOME_TO_USE/.config/rofi" -type f -iname "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+    mkdir -p "$HOME_DIR/.config/rofi"
+    mkdir -p "$HOME_DIR/.config/gtk-3.0"
+    mkdir -p "$HOME_DIR/.config/gtk-4.0"
 
-  chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_TO_USE/.config"
-fi
+    # Copy cleaned sway config
+    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/sway/config" "$HOME_DIR/.config/sway/config"
 
-# -------------------------------
-# Copy repo /etc files safely
-# (UNCHANGED)
-# -------------------------------
-if [[ -d "$ETC_DIR" ]]; then
-  echo "Installing /etc files..."
-  find "$ETC_DIR" -type f | while read -r f; do
-    dest="/etc/${f#$ETC_DIR/}"
-    mkdir -p "$(dirname "$dest")"
-    cp -f "$f" "$dest"
-    chown root:root "$dest"
-    chmod 644 "$dest"
-  done
-  find "$ETC_DIR" -type d | while read -r d; do
-    dest="/etc/${d#$ETC_DIR/}"
-    chmod 755 "$dest" 2>/dev/null || true
-  done
-fi
+    # Copy Rofi scripts
+    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/rofi/powermenu.lua" "$HOME_DIR/.config/rofi/powermenu.lua"
+    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/rofi/filebrowser" "$HOME_DIR/.config/rofi/filebrowser"
+    sudo -u "$USER_TO_RUN" cp "$CONFIG_DIR/rofi/drun" "$HOME_DIR/.config/rofi/drun"
 
-# -------------------------------
-# Setup greeter user properly
-# (UNCHANGED)
-# -------------------------------
-if ! id greeter &>/dev/null; then
-  echo "Creating greeter user..."
-  useradd -m \
-    -d "$GREETER_HOME" \
-    -s /usr/bin/nologin \
-    -G video,input \
-    greeter
-else
-  echo "Ensuring greeter groups..."
-  usermod -aG video,input greeter || true
-fi
+    # Set executable permissions
+    chmod +x "$HOME_DIR/.config/rofi/powermenu.lua" "$HOME_DIR/.config/rofi/filebrowser" "$HOME_DIR/.config/rofi/drun"
 
-mkdir -p "$GREETER_HOME"
-chown -R greeter:greeter "$GREETER_HOME"
-chmod 700 "$GREETER_HOME"
+    # Copy GTK config files (assuming user added them)
+    cp -r "$CONFIG_DIR/gtk/." "$HOME_DIR/.config/gtk-3.0/"
+    cp -r "$CONFIG_DIR/gtk/." "$HOME_DIR/.config/gtk-4.0/"
+}
 
-if [[ -d /etc/greetd ]]; then
-  chown root:root /etc/greetd
-  chmod 755 /etc/greetd
-  for f in config.toml sway-config; do
-    if [[ -f "/etc/greetd/$f" ]]; then
-      chown root:root "/etc/greetd/$f"
-      chmod 644 "/etc/greetd/$f"
-    fi
-  done
-else
-  echo "WARNING: /etc/greetd not found.
-Did packages install correctly?"
-fi
+# ----------------------------------------
+# Function: Install BetterGruvbox GTK theme
+# ----------------------------------------
+install_gruvbox_theme() {
+    echo "Installing GTK dependencies..."
+    sudo pacman -S --needed --noconfirm gtk-engine-murrine
 
-systemctl enable greetd.service
-systemctl restart greetd.service
+    echo "Installing BetterGruvbox GTK theme..."
+    sudo -u "$USER_TO_RUN" yay -S --noconfirm bettergruvbox-gtk-theme
+}
+
+# ----------------------------------------
+# Main Script
+# ----------------------------------------
+main() {
+    echo "Starting installer..."
+
+    # Update system first (optional)
+    sudo pacman -Syu --noconfirm
+
+    # Install system packages
+    install_pacman
+
+    # Install AUR packages
+    install_yay_aur
+
+    # Install GTK theme
+    install_gruvbox_theme
+
+    # Setup dotfiles and configs
+    setup_dotfiles
+
+    echo "Installer complete!"
+    echo "Reload Sway with Mod+Shift+C to apply configuration."
+}
+
+main
