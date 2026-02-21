@@ -40,9 +40,9 @@ for_window [class="discord"] move to workspace 2
 # -------------------------------
 # Autostart apps
 # -------------------------------
-exec swaymsg "workspace 1; exec zen-browser --user-data-dir=$HOME/.config/zen-browser-profile --no-first-run --no-default-browser-check"
+exec swaymsg "workspace 1; exec zen-browser --user-data-dir=$HOME/.config/zen-browser-profile --no-first-run --no-default-browser-check; move scratchpad"
 exec swaymsg "workspace 2; exec slack; move scratchpad"
-exec swaymsg "workspace 2; exec discord"
+exec swaymsg "workspace 2; exec discord; move scratchpad"
 
 # -------------------------------
 # Window appearance
