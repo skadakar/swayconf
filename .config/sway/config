@@ -16,7 +16,7 @@ set {
 }
 
 
-
+bindsym Mod4+r exec rofi -show drun
 # -------------------------------
 # Pin apps permanently to their workspaces
 # -------------------------------
