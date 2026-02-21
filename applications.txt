@@ -14,7 +14,6 @@ pacman:swaylock
 pacman:greetd
 pacman:yay
 pacman:htop
-pacman:rofi 
 pacman:luajit
 pacman:slurp
 pacman:grim
@@ -25,3 +24,4 @@ yay:slack-desktop
 yay:spotify
 yay:zen-browser-bin
 yay:light
+yay:rofi
