@@ -1,135 +1,179 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Production Sway bootstrap installer with gtkgreet + greetd
+# curl -sfL https://sway.spurve.net/install.sh | sudo bash
+
 set -euo pipefail
 
-# ----------------------------------------
-# Script directory
-# ----------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# -------------------------------
+# CONFIG
+# -------------------------------
+REPO_URL="https://github.com/skadakar/swayconf.git"
+APPLICATIONS_FILE="applications.txt"
+CONFIG_DIR=".config"
+ETC_DIR="etc"
+GREETER_HOME="/var/lib/greeter"
 
-# ----------------------------------------
-# Check for sudo
-# ----------------------------------------
+# -------------------------------
+# Ensure running as root
+# -------------------------------
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root (use sudo)."
+  exit 1
+fi
+
+# -------------------------------
+# Determine non-root user
+# -------------------------------
 USER_TO_RUN="${SUDO_USER:-}"
 if [[ -z "$USER_TO_RUN" ]]; then
-    echo "Error: Please run this script with sudo"
-    exit 1
-fi
-HOME_DIR=$(eval echo "~$USER_TO_RUN")
-
-# ----------------------------------------
-# Repo URL
-# ----------------------------------------
-REPO_URL="https://github.com/skadakar/swayconf.git"
-TMP_REPO="$(mktemp -d)"
-
-# ----------------------------------------
-# Find applications.txt
-# ----------------------------------------
-if [[ -f "./applications.txt" ]]; then
-    APPS_FILE="./applications.txt"
-elif [[ -f "$SCRIPT_DIR/applications.txt" ]]; then
-    APPS_FILE="$SCRIPT_DIR/applications.txt"
-else
-    echo "Error: applications.txt not found in current directory or script directory"
-    exit 1
+  echo "Could not determine non-root user."
+  exit 1
 fi
 
-# ----------------------------------------
+HOME_TO_USE=$(eval echo "~$USER_TO_RUN")
+
+# -------------------------------
+# Helper: install yay
+# -------------------------------
+install_yay() {
+  if ! command -v yay &>/dev/null; then
+    echo "Installing yay..."
+    pacman -S --needed --noconfirm git base-devel
+    TMP_DIR=$(mktemp -d -p "$HOME_TO_USE")
+    chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$TMP_DIR"
+    sudo -u "$USER_TO_RUN" git clone https://aur.archlinux.org/yay.git "$TMP_DIR/yay"
+    cd "$TMP_DIR/yay"
+    sudo -u "$USER_TO_RUN" makepkg -si --noconfirm
+    cd -
+    rm -rf "$TMP_DIR"
+  fi
+}
+
+# -------------------------------
+# Clone repo
+# -------------------------------
+TMP_REPO=$(mktemp -d)
+trap 'rm -rf "$TMP_REPO"' EXIT
+
+echo "Cloning swayconf..."
+git clone --depth 1 --branch main "$REPO_URL" "$TMP_REPO"
+chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$TMP_REPO"
+cd "$TMP_REPO"
+
+# -------------------------------
 # Install packages
-# ----------------------------------------
-install_packages() {
-    echo "Installing packages from $APPS_FILE..."
+# (UNCHANGED)
+# -------------------------------
+if [[ -f "$APPLICATIONS_FILE" ]]; then
+  pacman_pkgs=()
+  yay_pkgs=()
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" =~ ^# ]] && continue
+    manager="${line%%:*}"
+    package="${line#*:}"
+    case "$manager" in
+      pacman) pacman_pkgs+=("$package") ;;
+      yay) yay_pkgs+=("$package") ;;
+    esac
+  done < "$APPLICATIONS_FILE"
 
-    while read -r line; do
-        [[ -z "$line" || "$line" =~ ^# ]] && continue
+  if [[ ${#pacman_pkgs[@]} -gt 0 ]]; then
+    echo "Installing pacman packages..."
+    pacman -S --needed --noconfirm "${pacman_pkgs[@]}"
+  fi
 
-        case "$line" in
-            pacman:*)
-                pkg="${line#pacman:}"
-                echo "Installing pacman package: $pkg"
-                sudo pacman -S --needed --noconfirm "$pkg"
-                ;;
-            yay:*)
-                pkg="${line#yay:}"
-                echo "Installing AUR package via yay: $pkg"
-                sudo -u "$USER_TO_RUN" yay -S --noconfirm "$pkg"
-                ;;
-            *)
-                echo "Skipping unknown line: $line"
-                ;;
-        esac
-    done < "$APPS_FILE"
-}
-
-# ----------------------------------------
-# Clone swayconf and copy configs
-# ----------------------------------------
-setup_configs() {
-    echo "Cloning swayconf repo..."
-    git clone --depth 1 "$REPO_URL" "$TMP_REPO"
-    chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$TMP_REPO"
-
-    mkdir -p "$HOME_DIR/.config/sway"
-    mkdir -p "$HOME_DIR/.config/rofi"
-    mkdir -p "$HOME_DIR/.config/gtk-3.0"
-    mkdir -p "$HOME_DIR/.config/gtk-4.0"
-
-    # Copy Sway config
-    cp "$TMP_REPO/sway/config" "$HOME_DIR/.config/sway/config"
-    chown "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_DIR/.config/sway/config"
-
-    # Copy Rofi scripts and fix permissions
-    for script in powermenu.lua filebrowser drun; do
-        if [[ -f "$TMP_REPO/rofi/$script" ]]; then
-            cp "$TMP_REPO/rofi/$script" "$HOME_DIR/.config/rofi/$script"
-            chown "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_DIR/.config/rofi/$script"
-            chmod +x "$HOME_DIR/.config/rofi/$script"
-        fi
+  if [[ ${#yay_pkgs[@]} -gt 0 ]]; then
+    install_yay
+    echo "Installing AUR packages..."
+    for pkg in "${yay_pkgs[@]}"; do
+      if ! sudo -u "$USER_TO_RUN" yay -Q "$pkg" &>/dev/null; then
+        echo "Installing $pkg..."
+        sudo -u "$USER_TO_RUN" yay -S --noconfirm "$pkg"
+      else
+        echo "$pkg is already installed, skipping..."
+      fi
     done
+  fi
+fi
 
-    # Copy GTK configs if present
-    if [[ -d "$TMP_REPO/gtk" ]]; then
-        cp -r "$TMP_REPO/gtk/." "$HOME_DIR/.config/gtk-3.0/"
-        cp -r "$TMP_REPO/gtk/." "$HOME_DIR/.config/gtk-4.0/"
-        chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_DIR/.config/gtk-3.0/" "$HOME_DIR/.config/gtk-4.0/"
+# -------------------------------
+# Sync only repo-managed user configs
+# -------------------------------
+echo "Syncing user config..."
+mkdir -p "$HOME_TO_USE/.config"
+
+if [[ -d "$CONFIG_DIR" ]]; then
+  for item in "$CONFIG_DIR"/*; do
+    base_item=$(basename "$item")
+    dest="$HOME_TO_USE/.config/$base_item"
+    if [[ -d "$item" ]]; then
+      mkdir -p "$dest"
+      rsync -a "$item/" "$dest/"
+    else
+      cp -a "$item" "$dest"
     fi
+  done
 
-    # Copy .profile if present
-    if [[ -f "$TMP_REPO/profile/.profile" ]]; then
-        cp "$TMP_REPO/profile/.profile" "$HOME_DIR/.profile"
-        chown "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_DIR/.profile"
-        echo ".profile copied to home directory"
+  # ❗ FIX: Make rofi and script files executable
+  echo "Fixing executable permissions for rofi scripts..."
+  find "$HOME_TO_USE/.config/rofi" -type f -iname "*.lua" -exec chmod +x {} \; 2>/dev/null || true
+  find "$HOME_TO_USE/.config/rofi" -type f -iname "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+
+  chown -R "$USER_TO_RUN":"$USER_TO_RUN" "$HOME_TO_USE/.config"
+fi
+
+# -------------------------------
+# Copy repo /etc files safely
+# (UNCHANGED)
+# -------------------------------
+if [[ -d "$ETC_DIR" ]]; then
+  echo "Installing /etc files..."
+  find "$ETC_DIR" -type f | while read -r f; do
+    dest="/etc/${f#$ETC_DIR/}"
+    mkdir -p "$(dirname "$dest")"
+    cp -f "$f" "$dest"
+    chown root:root "$dest"
+    chmod 644 "$dest"
+  done
+  find "$ETC_DIR" -type d | while read -r d; do
+    dest="/etc/${d#$ETC_DIR/}"
+    chmod 755 "$dest" 2>/dev/null || true
+  done
+fi
+
+# -------------------------------
+# Setup greeter user properly
+# (UNCHANGED)
+# -------------------------------
+if ! id greeter &>/dev/null; then
+  echo "Creating greeter user..."
+  useradd -m \
+    -d "$GREETER_HOME" \
+    -s /usr/bin/nologin \
+    -G video,input \
+    greeter
+else
+  echo "Ensuring greeter groups..."
+  usermod -aG video,input greeter || true
+fi
+
+mkdir -p "$GREETER_HOME"
+chown -R greeter:greeter "$GREETER_HOME"
+chmod 700 "$GREETER_HOME"
+
+if [[ -d /etc/greetd ]]; then
+  chown root:root /etc/greetd
+  chmod 755 /etc/greetd
+  for f in config.toml sway-config; do
+    if [[ -f "/etc/greetd/$f" ]]; then
+      chown root:root "/etc/greetd/$f"
+      chmod 644 "/etc/greetd/$f"
     fi
-}
+  done
+else
+  echo "WARNING: /etc/greetd not found.
+Did packages install correctly?"
+fi
 
-# ----------------------------------------
-# Install BetterGruvbox GTK theme
-# ----------------------------------------
-install_gruvbox_theme() {
-    echo "Installing BetterGruvbox GTK theme from AUR..."
-    sudo -u "$USER_TO_RUN" yay -S --noconfirm bettergruvbox-gtk-theme
-}
-
-# ----------------------------------------
-# Main
-# ----------------------------------------
-main() {
-    echo "Starting installer..."
-
-    # Update system packages
-    sudo pacman -Syu --noconfirm
-
-    # Install packages
-    install_packages
-
-    # Install GTK theme
-    install_gruvbox_theme
-
-    # Setup configs
-    setup_configs
-
-    echo "Installation complete!"
-    echo "Reload Sway (Mod+Shift+C) and log out/in to apply GTK_THEME for Zen Browser and other GTK apps."
-}
-
-main
+systemctl enable greetd.service
+systemctl restart greetd.service
