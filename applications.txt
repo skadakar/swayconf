@@ -23,7 +23,8 @@ pacman:playerctl
 # AUR Packages
 yay:slack-desktop
 yay:spotify
-yay:zen-browser-bin
+yay:brave-browser-bin
 yay:light
 yay:rofi
 yay:bettergruvbox-gtk-theme
+yay:sublime-text-4
