@@ -18,6 +18,9 @@ pacman:luajit
 pacman:slurp
 pacman:grim
 pacman:playerctl
+pacman:slurp
+pacman:satty
+pacman:grim
 
 
 # AUR Packages
